@@ -407,12 +407,12 @@ static JSC::EncodedJSValue WebCrypto__AsymmetricKeyType(JSC::JSGlobalObject* lex
         case CryptoAlgorithmIdentifier::RSA_PSS:
             return JSC::JSValue::encode(JSC::jsStringWithCache(lexicalGlobalObject->vm(), values[1]));
         case CryptoAlgorithmIdentifier::ECDSA:
-            return JSC::JSValue::encode(JSC::jsStringWithCache(lexicalGlobalObject->vm(),values[2]));
+            return JSC::JSValue::encode(JSC::jsStringWithCache(lexicalGlobalObject->vm(), values[2]));
         case CryptoAlgorithmIdentifier::ECDH:
             return JSC::JSValue::encode(JSC::jsStringWithCache(lexicalGlobalObject->vm(), values[3]));
         case CryptoAlgorithmIdentifier::Ed25519: {
             const auto& okpKey = downcast<WebCore::CryptoKeyOKP>(key->wrapped());
-            //TODO: CHECK THIS WHEN X488 AND ED448 ARE ADDED
+            // TODO: CHECK THIS WHEN X488 AND ED448 ARE ADDED
             return JSC::JSValue::encode(JSC::jsStringWithCache(lexicalGlobalObject->vm(), String(okpKey.namedCurve() == CryptoKeyOKP::NamedCurve::X25519 ? values[4] : values[5])));
         }
         default:
@@ -468,7 +468,7 @@ static AsymmetricKeyValue GetInternalAsymmetricKey(WebCore::CryptoKey& key)
     case CryptoAlgorithmIdentifier::Ed25519: {
         const auto& okpKey = downcast<WebCore::CryptoKeyOKP>(key);
         auto keyData = okpKey.exportKey();
-        //TODO: CHECK THIS WHEN X488 AND ED448 ARE ADDED
+        // TODO: CHECK THIS WHEN X488 AND ED448 ARE ADDED
         if (okpKey.type() == CryptoKeyType::Private) {
             auto* evp_key = EVP_PKEY_new_raw_private_key(okpKey.namedCurve() == CryptoKeyOKP::NamedCurve::X25519 ? EVP_PKEY_X25519 : EVP_PKEY_ED25519, nullptr, keyData.data(), keyData.size());
             return (AsymmetricKeyValue) { .key = evp_key, .owned = true };
@@ -616,23 +616,27 @@ static JSC::EncodedJSValue WebCrypto__Exports(JSC::JSGlobalObject* globalObject,
                         } else {
                             JSValue passphraseJSValue = options->getDirect(vm, PropertyName(Identifier::fromString(vm, "passphrase"_s)));
                             JSValue cipherJSValue = options->getDirect(vm, PropertyName(Identifier::fromString(vm, "cipher"_s)));
-                            auto cipher_wtfstr = cipherJSValue.toWTFString(globalObject);
-                            const EVP_CIPHER* cipher;
 
-                            if (!cipher_wtfstr.isNull()) {
-                                auto cipherOrError = cipher_wtfstr.tryGetUTF8();
-                                if (!cipherOrError) {
-                                    auto scope = DECLARE_THROW_SCOPE(vm);
-                                    JSC::throwTypeError(globalObject, scope, "invalid cipher name"_s);
-                                    BIO_free(bio);
-                                    return JSC::JSValue::encode(JSC::JSValue {});
-                                } else {
-                                    auto cipher_str = cipherOrError->data();
-                                    if (cipher_str != nullptr) {
-                                        cipher = EVP_get_cipherbyname(cipher_str);
+                            const EVP_CIPHER* cipher;
+                            if (!cipherJSValue.isUndefinedOrNull() && !cipherJSValue.isEmpty()) {
+                                auto cipher_wtfstr = cipherJSValue.toWTFString(globalObject);
+                                if (!cipher_wtfstr.isNull()) {
+                                    auto cipherOrError = cipher_wtfstr.tryGetUTF8();
+                                    if (!cipherOrError) {
+                                        auto scope = DECLARE_THROW_SCOPE(vm);
+                                        JSC::throwTypeError(globalObject, scope, "invalid cipher name"_s);
+                                        BIO_free(bio);
+                                        return JSC::JSValue::encode(JSC::JSValue {});
                                     } else {
-                                        cipher = nullptr;
+                                        auto cipher_str = cipherOrError->data();
+                                        if (cipher_str != nullptr) {
+                                            cipher = EVP_get_cipherbyname(cipher_str);
+                                        } else {
+                                            cipher = nullptr;
+                                        }
                                     }
+                                } else {
+                                    cipher = nullptr;
                                 }
                             } else {
                                 cipher = nullptr;
@@ -643,11 +647,15 @@ static JSC::EncodedJSValue WebCrypto__Exports(JSC::JSGlobalObject* globalObject,
                                 passphrase = passphraseBuffer->vector();
                                 passphrase_len = passphraseBuffer->byteLength();
                             } else {
-                                auto passphrase_wtfstr = passphraseJSValue.toWTFString(globalObject);
-                                if (!passphrase_wtfstr.isNull()) {
-                                    if (auto pass = passphrase_wtfstr.tryGetUTF8()) {
-                                        passphrase = const_cast<char*>(pass->data());
-                                        passphrase_len = pass->length();
+                                if (!passphraseJSValue.isUndefinedOrNull() && !passphraseJSValue.isEmpty()) {
+                                    auto passphrase_wtfstr = passphraseJSValue.toWTFString(globalObject);
+                                    if (!passphrase_wtfstr.isNull()) {
+                                        if (auto pass = passphrase_wtfstr.tryGetUTF8()) {
+                                            passphrase = const_cast<char*>(pass->data());
+                                            passphrase_len = pass->length();
+                                        } else {
+                                            passphrase = nullptr;
+                                        }
                                     } else {
                                         passphrase = nullptr;
                                     }
@@ -785,23 +793,27 @@ static JSC::EncodedJSValue WebCrypto__Exports(JSC::JSGlobalObject* globalObject,
                         } else {
                             JSValue passphraseJSValue = options->getDirect(vm, PropertyName(Identifier::fromString(vm, "passphrase"_s)));
                             JSValue cipherJSValue = options->getDirect(vm, PropertyName(Identifier::fromString(vm, "cipher"_s)));
-                            auto cipher_wtfstr = cipherJSValue.toWTFString(globalObject);
-                            const EVP_CIPHER* cipher;
 
-                            if (!cipher_wtfstr.isNull()) {
-                                auto cipherOrError = cipher_wtfstr.tryGetUTF8();
-                                if (!cipherOrError) {
-                                    auto scope = DECLARE_THROW_SCOPE(vm);
-                                    JSC::throwTypeError(globalObject, scope, "invalid cipher name"_s);
-                                    BIO_free(bio);
-                                    return JSC::JSValue::encode(JSC::JSValue {});
-                                } else {
-                                    auto cipher_str = cipherOrError->data();
-                                    if (cipher_str != nullptr) {
-                                        cipher = EVP_get_cipherbyname(cipher_str);
+                            const EVP_CIPHER* cipher;
+                            if (!cipherJSValue.isUndefinedOrNull() && !cipherJSValue.isEmpty()) {
+                                auto cipher_wtfstr = cipherJSValue.toWTFString(globalObject);
+                                if (!cipher_wtfstr.isNull()) {
+                                    auto cipherOrError = cipher_wtfstr.tryGetUTF8();
+                                    if (!cipherOrError) {
+                                        auto scope = DECLARE_THROW_SCOPE(vm);
+                                        JSC::throwTypeError(globalObject, scope, "invalid cipher name"_s);
+                                        BIO_free(bio);
+                                        return JSC::JSValue::encode(JSC::JSValue {});
                                     } else {
-                                        cipher = nullptr;
+                                        auto cipher_str = cipherOrError->data();
+                                        if (cipher_str != nullptr) {
+                                            cipher = EVP_get_cipherbyname(cipher_str);
+                                        } else {
+                                            cipher = nullptr;
+                                        }
                                     }
+                                } else {
+                                    cipher = nullptr;
                                 }
                             } else {
                                 cipher = nullptr;
@@ -812,11 +824,15 @@ static JSC::EncodedJSValue WebCrypto__Exports(JSC::JSGlobalObject* globalObject,
                                 passphrase = passphraseBuffer->vector();
                                 passphrase_len = passphraseBuffer->byteLength();
                             } else {
-                                auto passphrase_wtfstr = passphraseJSValue.toWTFString(globalObject);
-                                if (!passphrase_wtfstr.isNull()) {
-                                    if (auto pass = passphrase_wtfstr.tryGetUTF8()) {
-                                        passphrase = const_cast<char*>(pass->data());
-                                        passphrase_len = pass->length();
+                                if (!passphraseJSValue.isUndefinedOrNull() && !passphraseJSValue.isEmpty()) {
+                                    auto passphrase_wtfstr = passphraseJSValue.toWTFString(globalObject);
+                                    if (!passphrase_wtfstr.isNull()) {
+                                        if (auto pass = passphrase_wtfstr.tryGetUTF8()) {
+                                            passphrase = const_cast<char*>(pass->data());
+                                            passphrase_len = pass->length();
+                                        } else {
+                                            passphrase = nullptr;
+                                        }
                                     } else {
                                         passphrase = nullptr;
                                     }
@@ -915,29 +931,33 @@ static JSC::EncodedJSValue WebCrypto__Exports(JSC::JSGlobalObject* globalObject,
                         auto* bio = BIO_new(BIO_s_mem());
 
                         EVP_PKEY* evpKey;
-                        //TODO: CHECK THIS WHEN X488 AND ED448 ARE ADDED
+                        // TODO: CHECK THIS WHEN X488 AND ED448 ARE ADDED
                         if (okpKey.type() == CryptoKeyType::Private) {
                             evpKey = EVP_PKEY_new_raw_private_key(okpKey.namedCurve() == CryptoKeyOKP::NamedCurve::X25519 ? EVP_PKEY_X25519 : EVP_PKEY_ED25519, nullptr, keyData.data(), keyData.size());
                             JSValue passphraseJSValue = options->getDirect(vm, PropertyName(Identifier::fromString(vm, "passphrase"_s)));
                             JSValue cipherJSValue = options->getDirect(vm, PropertyName(Identifier::fromString(vm, "cipher"_s)));
-                            auto cipher_wtfstr = cipherJSValue.toWTFString(globalObject);
-                            const EVP_CIPHER* cipher;
 
-                            if (!cipher_wtfstr.isNull()) {
-                                auto cipherOrError = cipher_wtfstr.tryGetUTF8();
-                                if (!cipherOrError) {
-                                    auto scope = DECLARE_THROW_SCOPE(vm);
-                                    JSC::throwTypeError(globalObject, scope, "invalid cipher name"_s);
-                                    BIO_free(bio);
-                                    EVP_PKEY_free(evpKey);
-                                    return JSC::JSValue::encode(JSC::JSValue {});
-                                } else {
-                                    auto cipher_str = cipherOrError->data();
-                                    if (cipher_str != nullptr) {
-                                        cipher = EVP_get_cipherbyname(cipher_str);
+                            const EVP_CIPHER* cipher;
+                            if (!cipherJSValue.isUndefinedOrNull() && !cipherJSValue.isEmpty()) {
+                                auto cipher_wtfstr = cipherJSValue.toWTFString(globalObject);
+                                if (!cipher_wtfstr.isNull()) {
+                                    auto cipherOrError = cipher_wtfstr.tryGetUTF8();
+                                    if (!cipherOrError) {
+                                        auto scope = DECLARE_THROW_SCOPE(vm);
+                                        JSC::throwTypeError(globalObject, scope, "invalid cipher name"_s);
+                                        BIO_free(bio);
+                                        EVP_PKEY_free(evpKey);
+                                        return JSC::JSValue::encode(JSC::JSValue {});
                                     } else {
-                                        cipher = nullptr;
+                                        auto cipher_str = cipherOrError->data();
+                                        if (cipher_str != nullptr) {
+                                            cipher = EVP_get_cipherbyname(cipher_str);
+                                        } else {
+                                            cipher = nullptr;
+                                        }
                                     }
+                                } else {
+                                    cipher = nullptr;
                                 }
                             } else {
                                 cipher = nullptr;
@@ -948,11 +968,15 @@ static JSC::EncodedJSValue WebCrypto__Exports(JSC::JSGlobalObject* globalObject,
                                 passphrase = passphraseBuffer->vector();
                                 passphrase_len = passphraseBuffer->byteLength();
                             } else {
-                                auto passphrase_wtfstr = passphraseJSValue.toWTFString(globalObject);
-                                if (!passphrase_wtfstr.isNull()) {
-                                    if (auto pass = passphrase_wtfstr.tryGetUTF8()) {
-                                        passphrase = const_cast<char*>(pass->data());
-                                        passphrase_len = pass->length();
+                                if (!passphraseJSValue.isUndefinedOrNull() && !passphraseJSValue.isEmpty()) {
+                                    auto passphrase_wtfstr = passphraseJSValue.toWTFString(globalObject);
+                                    if (!passphrase_wtfstr.isNull()) {
+                                        if (auto pass = passphrase_wtfstr.tryGetUTF8()) {
+                                            passphrase = const_cast<char*>(pass->data());
+                                            passphrase_len = pass->length();
+                                        } else {
+                                            passphrase = nullptr;
+                                        }
                                     } else {
                                         passphrase = nullptr;
                                     }
